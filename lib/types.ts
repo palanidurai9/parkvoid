@@ -63,7 +63,7 @@ export interface Dispute {
   createdAt: string;
 }
 
-export type SubscriptionPlan = 'starter' | 'pro' | 'apartment';
+export type SubscriptionPlan = 'free' | 'starter' | 'pro';
 export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'cancelled';
 
 export interface Subscription {

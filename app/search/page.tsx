@@ -31,11 +31,11 @@ export default function SearchPage() {
             const sub = subs.find(s => s.ownerId === ownerId);
             const user = users.find(u => u.id === ownerId);
 
-            const plan = sub?.plan || user?.subscriptionPlan || 'starter';
+            const plan = (sub?.plan || user?.subscriptionPlan || 'free').toLowerCase();
 
-            if (plan === 'apartment') return 3;
             if (plan === 'pro') return 2;
-            return 1;
+            if (plan === 'starter') return 1;
+            return 0;
         };
 
         const sortedData = [...data].sort((a, b) => {

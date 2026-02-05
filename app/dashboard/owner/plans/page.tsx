@@ -10,12 +10,23 @@ import { v4 as uuidv4 } from "uuid";
 
 const PLANS = [
     {
+        id: 'free' as SubscriptionPlan,
+        name: 'Free Host',
+        price: 0,
+        slots: 1,
+        commission: 15,
+        features: ['Max 1 Parking Slot', '15% Commission', 'Standard Ranking', 'Basic Dashboard', 'Booking Calendar', 'No Analytics Export'],
+        color: 'border-white/20',
+        bg: 'bg-white/5',
+        badge: 'bg-gray-600',
+    },
+    {
         id: 'starter' as SubscriptionPlan,
         name: 'Starter Host',
         price: 499,
         slots: 2,
         commission: 10,
-        features: ['Max 2 Parking Slots', '10% Commission', 'Standard Ranking', 'Basic Dashboard', 'Booking Calendar'],
+        features: ['Max 2 Parking Slots', '10% Commission', 'Standard Ranking', 'Booking Calendar', 'Basic Earnings Dashboard'],
         color: 'border-brand-teal',
         bg: 'bg-brand-teal/10',
         badge: 'bg-brand-teal',
@@ -31,17 +42,6 @@ const PLANS = [
         bg: 'bg-blue-400/10',
         badge: 'bg-blue-400',
         recommended: true
-    },
-    {
-        id: 'apartment' as SubscriptionPlan,
-        name: 'Apartment Partner',
-        price: 4999,
-        slots: -1, // Unlimited
-        commission: 0,
-        features: ['Unlimited Slots', '0% Commission', 'Dedicated Onboarding Tag', 'Custom Pricing Rules', 'Security Dashboard', 'Monthly Analytics PDF'],
-        color: 'border-purple-400',
-        bg: 'bg-purple-400/10',
-        badge: 'bg-purple-400',
     }
 ];
 
@@ -67,8 +67,7 @@ export default function PlansPage() {
         setTimeout(() => {
             // 1. Update User Plan
             const updatedUser = { ...user, subscriptionPlan: plan.id, subscriptionStatus: 'active' as const };
-            // In a real app we would call API, here we simulate updating local storage user via a trick or DB
-            // Since useAuth pulls from localStorage/session, we need to update DB and then "reload"
+            db.users.update(updatedUser);
 
             // Update in DB
             db.subscriptions.create({

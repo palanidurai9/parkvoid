@@ -47,14 +47,14 @@ export default function AddParkingPage() {
                 const stats = await getOwnerStats(user.id);
                 const currentSlots = stats.totalSlots;
 
-                const plan = user.subscriptionPlan || 'starter'; // Fallback if not updated in context yet
-                let limit = 2; // Starter
+                const plan = (user.subscriptionPlan || 'free').toLowerCase();
+                let limit = 1; // Free
+                if (plan === 'starter') limit = 2;
                 if (plan === 'pro') limit = 10;
-                if (plan === 'apartment') limit = 9999;
 
                 if (currentSlots >= limit) {
                     setCanAdd(false);
-                    setLimitMsg(`You have reached the ${limit} slots limit for the ${plan} plan.`);
+                    setLimitMsg(`You have reached the ${limit} slot(s) limit for the ${plan} plan. Upgrade to list more.`);
                 }
             } catch (error) {
                 console.error("Failed to check limits", error);

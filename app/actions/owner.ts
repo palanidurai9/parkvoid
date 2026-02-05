@@ -45,13 +45,17 @@ export async function addParkingSlot(data: any, ownerId: string) {
         if (!owner) return { success: false, error: "Owner not found" }
 
         // Logic for limits (simplified)
+        // Logic for limits
         const currentCount = owner.slots.length
-        let limit = 2 // Starter
-        if (owner.subPlan === 'PRO') limit = 10
-        if (owner.subPlan === 'APARTMENT') limit = 999
+        let limit = 1 // Free (Default)
+
+        const plan = owner.subPlan ? owner.subPlan.toUpperCase() : 'FREE';
+
+        if (plan === 'STARTER') limit = 2
+        if (plan === 'PRO') limit = 10
 
         if (currentCount >= limit) {
-            return { success: false, error: `Detailed limit reached for ${owner.subPlan || 'STARTER'} plan.` }
+            return { success: false, error: `Slot limit of ${limit} reached for ${plan} plan. Upgrade to list more.` }
         }
 
         await prisma.parkingSlot.create({

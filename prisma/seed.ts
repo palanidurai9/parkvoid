@@ -23,26 +23,76 @@ async function main() {
         }
     })
 
-    // Create 5 Owners
+    // Create Owners
     const owners = []
-    for (let i = 1; i <= 5; i++) {
+
+    // 8 Free Owners
+    for (let i = 1; i <= 8; i++) {
         const owner = await prisma.user.create({
             data: {
-                phone: `999000000${i}`,
-                name: `Owner ${i}`,
+                phone: `999000100${i}`,
+                name: `Free Host ${i}`,
                 role: 'OWNER',
-                walletBalance: 100 * i,
-                subPlan: i % 2 === 0 ? 'PRO' : 'STARTER',
+                walletBalance: 0,
+                subPlan: 'FREE',
                 subStatus: 'ACTIVE'
             }
         })
         owners.push(owner)
-
-        // Create Subscription for Owner
         await prisma.subscription.create({
             data: {
                 ownerId: owner.id,
-                tier: i % 2 === 0 ? 'PRO' : 'STARTER',
+                tier: 'FREE',
+                status: 'ACTIVE',
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: new Date(new Date().setFullYear(new Date().getFullYear() + 10)), // Long expiry
+                autoRenew: false
+            }
+        })
+    }
+
+    // 5 Starter Owners
+    for (let i = 1; i <= 5; i++) {
+        const owner = await prisma.user.create({
+            data: {
+                phone: `999000200${i}`,
+                name: `Starter Host ${i}`,
+                role: 'OWNER',
+                walletBalance: 500,
+                subPlan: 'STARTER',
+                subStatus: 'ACTIVE'
+            }
+        })
+        owners.push(owner)
+        await prisma.subscription.create({
+            data: {
+                ownerId: owner.id,
+                tier: 'STARTER',
+                status: 'ACTIVE',
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: new Date(new Date().setDate(new Date().getDate() + 30)),
+                autoRenew: true
+            }
+        })
+    }
+
+    // 3 Pro Owners
+    for (let i = 1; i <= 3; i++) {
+        const owner = await prisma.user.create({
+            data: {
+                phone: `999000300${i}`,
+                name: `Pro Host ${i}`,
+                role: 'OWNER',
+                walletBalance: 2000,
+                subPlan: 'PRO',
+                subStatus: 'ACTIVE'
+            }
+        })
+        owners.push(owner)
+        await prisma.subscription.create({
+            data: {
+                ownerId: owner.id,
+                tier: 'PRO',
                 status: 'ACTIVE',
                 currentPeriodStart: new Date(),
                 currentPeriodEnd: new Date(new Date().setDate(new Date().getDate() + 30)),
