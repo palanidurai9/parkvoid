@@ -1,0 +1,35 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  /* Parkvoid Palette */
+  --color-brand-navy: #071A2F;
+  --color-brand-teal: #18C7AE;
+  --color-brand-white: #FFFFFF;
+  --color-brand-gray: #BFC7D1;
+  --color-brand-charcoal: #0B0F14;
+
+  --background: var(--color-brand-navy);
+  --foreground: var(--color-brand-white);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-navy: var(--color-brand-navy);
+  --color-brand-teal: var(--color-brand-teal);
+  --color-brand-white: var(--color-brand-white);
+  --color-brand-gray: var(--color-brand-gray);
+  --color-brand-charcoal: var(--color-brand-charcoal);
+
+  --color-primary: var(--color-brand-navy);
+  --color-accent: var(--color-brand-teal);
+  --color-neutral: var(--color-brand-gray);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

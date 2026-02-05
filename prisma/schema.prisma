@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 2. Users & Auth
+model User {
+  id              String    @id @default(uuid())
+  phone           String    @unique
+  name            String?
+  email           String?   @unique
+  role            String    @default("DRIVER") // Valid: DRIVER, OWNER, ADMIN, AGENT
+  
+  // Owner Specifics
+  walletBalance   Decimal   @default(0.00)
+  subPlan         String?   // Valid: STARTER, PRO, APARTMENT
+  subStatus       String?   // Valid: ACTIVE, PAST_DUE...
+  kycStatus       String    @default("PENDING")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  slots           ParkingSlot[]
+  bookings        Booking[]
+  subscriptions   Subscription[]
+  invoices        Invoice[]
+  auditLogs       AuditLog[]
+  payouts         PayoutLedger[]
+}
+
+// 3. Parking Inventory
+model ParkingSlot {
+  id             String       @id @default(uuid())
+  ownerId        String
+  owner          User         @relation(fields: [ownerId], references: [id])
+  
+  title          String
+  address        String
+  lat            Float
+  lng            Float
+  
+  pricePerHour   Decimal
+  vehicleType    String       // Valid: CAR, BIKE, SUV
+  
+  openTime       String?      @default("00:00") // 24hr format
+  closeTime      String?      @default("23:59")
+  
+  // Availability & Status
+  isActive       Boolean      @default(false)
+  isApproved     Boolean      @default(false)
+  
+  description    String?
+  images         String       @default("[]") // JSON String for SQLite
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  bookings       Booking[]
+}
+
+// 4. Bookings
+model Booking {
+  id             String        @id @default(uuid())
+  slotId         String
+  slot           ParkingSlot   @relation(fields: [slotId], references: [id])
+  
+  driverId       String
+  driver         User          @relation(fields: [driverId], references: [id])
+  
+  startTime      DateTime
+  endTime        DateTime
+  
+  amount         Decimal
+  platformFee    Decimal?
+  taxGst         Decimal?
+  
+  status         String        @default("PENDING") // Valid: PENDING, CONFIRMED, PAID
+  paymentId      String?       // Razorpay Order ID
+  qrCode         String?
+  
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  
+  createdAt      DateTime      @default(now())
+  
+  payout         PayoutLedger?
+}
+
+// 5. Subscriptions (SaaS)
+model Subscription {
+  id                  String    @id @default(uuid())
+  ownerId             String
+  owner               User      @relation(fields: [ownerId], references: [id])
+  
+  tier                String    // STARTER, PRO
+  status              String    @default("ACTIVE")
+  
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  razorpaySubId       String?
+  autoRenew           Boolean   @default(true)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  invoices            Invoice[]
+}
+
+// 6. Invoices
+model Invoice {
+  id              String       @id @default(uuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  
+  subId           String?
+  subscription    Subscription? @relation(fields: [subId], references: [id])
+  
+  amount          Decimal
+  gstComponent    Decimal
+  pdfUrl          String?
+  status          String       // 'paid', 'failed'
+  
+  createdAt       DateTime     @default(now())
+}
+
+// 7. Payouts (Money)
+model PayoutLedger {
+  id              String    @id @default(uuid())
+  ownerId         String
+  owner           User      @relation(fields: [ownerId], references: [id])
+  
+  bookingId       String    @unique
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  
+  creditAmount    Decimal
+  commission      Decimal
+  status          String    // 'pending', 'settled'
+  
+  processedAt     DateTime?
+}
+
+// 8. Audit (Security)
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  actor       User     @relation(fields: [actorId], references: [id])
+  
+  action      String
+  details     String?  // SQLite doesn't support JSON, use Stringified JSON
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+}
