@@ -31,6 +31,19 @@ model User {
   invoices        Invoice[]
   auditLogs       AuditLog[]
   payouts         PayoutLedger[]
+  sessions        Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // 3. Parking Inventory
@@ -81,6 +94,7 @@ model Booking {
   
   status         String        @default("PENDING") // Valid: PENDING, CONFIRMED, PAID
   paymentId      String?       // Razorpay Order ID
+  paymentOrderId String?       @unique // Razorpay order ID
   qrCode         String?
   
   checkInTime    DateTime?

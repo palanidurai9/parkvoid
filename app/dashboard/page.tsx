@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-import { db } from "@/lib/store";
 import { Booking, ParkingSlot } from "@/lib/types";
 import { format, parseISO, isFuture, isPast } from "date-fns";
 import { Calendar, Clock, MapPin, QrCode } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getDriverBookings } from "@/app/actions/booking";
 
 export default function DriverDashboard() {
     const { user } = useAuth();
@@ -22,19 +22,7 @@ export default function DriverDashboard() {
             if (user?.role === 'admin') router.push('/admin');
         }
 
-        if (user) {
-            const userBookings = db.bookings.getAll()
-                .filter(b => b.driverId === user.id)
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-            const slots = db.slots.getAll();
-            const enriched = userBookings.map(b => ({
-                ...b,
-                slot: slots.find(s => s.id === b.slotId)!
-            })).filter(b => b.slot); // filter out if slot deleted mock
-
-            setBookings(enriched);
-        }
+        if (user?.role === 'driver') getDriverBookings().then((items) => setBookings(items as unknown as (Booking & { slot: ParkingSlot })[]));
     }, [user, router]);
 
     if (!user) return null;

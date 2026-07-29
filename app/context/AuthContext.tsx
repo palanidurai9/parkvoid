@@ -2,20 +2,19 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/lib/types";
-import { db } from "@/lib/store";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
     user: User | null;
-    login: (phone: string) => boolean;
-    logout: () => void;
+    login: (phone: string, adminCode?: string) => Promise<boolean>;
+    logout: () => Promise<void>;
     isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
-    login: () => false,
-    logout: () => { },
+    login: async () => false,
+    logout: async () => { },
     isLoading: true,
 });
 
@@ -25,24 +24,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
 
     useEffect(() => {
-        // Check for active session
-        const currentUser = db.auth.getCurrentUser();
-        setUser(currentUser || null);
-        setIsLoading(false);
+        fetch('/api/auth/me')
+            .then(async (response) => response.ok ? response.json() : { user: null })
+            .then(({ user: currentUser }) => setUser(currentUser || null))
+            .finally(() => setIsLoading(false));
     }, []);
 
-    const login = (phone: string) => {
-        const foundUser = db.users.login(phone);
-        if (foundUser) {
-            db.auth.setCurrentUser(foundUser.id);
-            setUser(foundUser);
-            return true;
-        }
-        return false;
+    const login = async (phone: string, adminCode?: string) => {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, adminCode }),
+        });
+        if (!response.ok) return false;
+        const { user: foundUser } = await response.json();
+        setUser(foundUser);
+        return true;
     };
 
-    const logout = () => {
-        db.auth.setCurrentUser(null);
+    const logout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
         setUser(null);
         router.push("/");
     };

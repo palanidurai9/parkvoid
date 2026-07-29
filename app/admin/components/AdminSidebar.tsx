@@ -29,9 +29,7 @@ export default function AdminSidebar() {
     const { logout } = useAuth();
 
     const handleLogout = () => {
-        // Implement logout logic or redirection
-        //For now just redirect
-        router.push('/');
+        void logout();
     };
 
     return (

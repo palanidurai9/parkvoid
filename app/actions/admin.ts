@@ -2,10 +2,12 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireRole } from "@/lib/session"
 
 // --- STATS ---
 export async function getAdminStats() {
     try {
+        await requireRole('ADMIN')
         const revenueResult = await prisma.booking.aggregate({
             _sum: { amount: true },
             where: { status: 'paid' } // Only count paid bookings
@@ -45,6 +47,7 @@ export async function getAdminStats() {
 // --- SLOTS MANAGEMENT ---
 export async function getPendingSlots() {
     try {
+        await requireRole('ADMIN')
         const slots = await prisma.parkingSlot.findMany({
             where: { isApproved: false },
             include: { owner: true } // getting owner name
@@ -67,6 +70,7 @@ export async function getPendingSlots() {
 
 export async function getAllSlots() {
     try {
+        await requireRole('ADMIN')
         const slots = await prisma.parkingSlot.findMany({
             include: { owner: true }
         })
@@ -86,11 +90,13 @@ export async function getAllSlots() {
 
 export async function approveSlot(slotId: string) {
     try {
+        const admin = await requireRole('ADMIN')
         await prisma.parkingSlot.update({
             where: { id: slotId },
             data: { isApproved: true, isActive: true }
         })
         revalidatePath('/admin')
+        await prisma.auditLog.create({ data: { actorId: admin.id, action: 'APPROVE_SLOT', details: JSON.stringify({ slotId }) } })
         return { success: true }
     } catch (error) {
         return { success: false, error: 'Failed to approve' }
@@ -99,12 +105,14 @@ export async function approveSlot(slotId: string) {
 
 export async function rejectSlot(slotId: string) {
     try {
+        const admin = await requireRole('ADMIN')
         await prisma.parkingSlot.update({
             where: { id: slotId },
             data: { isApproved: false, isActive: false }
             // Or delete: await prisma.parkingSlot.delete({ where: { id: slotId } })
         })
         revalidatePath('/admin')
+        await prisma.auditLog.create({ data: { actorId: admin.id, action: 'REJECT_SLOT', details: JSON.stringify({ slotId }) } })
         return { success: true }
     } catch (error) {
         return { success: false, error: 'Failed to reject' }
@@ -114,6 +122,7 @@ export async function rejectSlot(slotId: string) {
 // --- BOOKINGS ---
 export async function getAllBookings() {
     try {
+        await requireRole('ADMIN')
         const bookings = await prisma.booking.findMany({
             orderBy: { createdAt: 'desc' },
             take: 50,
@@ -133,6 +142,7 @@ export async function getAllBookings() {
 
 export async function getRecentBookings() {
     try {
+        await requireRole('ADMIN')
         const bookings = await prisma.booking.findMany({
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -154,6 +164,7 @@ export async function getRecentBookings() {
 // --- USERS (OWNERS) ---
 export async function getOwners() {
     try {
+        await requireRole('ADMIN')
         const owners = await prisma.user.findMany({
             // where: { role: 'owner' }, // Fetching all users for now for the Registry
             include: { subscriptions: true }

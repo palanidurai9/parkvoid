@@ -44,7 +44,7 @@ export default function AddParkingPage() {
         const checkLimits = async () => {
             if (!user) return;
             try {
-                const stats = await getOwnerStats(user.id);
+                const stats = await getOwnerStats();
                 const currentSlots = stats.totalSlots;
 
                 const plan = (user.subscriptionPlan || 'free').toLowerCase();
@@ -75,7 +75,7 @@ export default function AddParkingPage() {
             const result = await addParkingSlot({
                 ...formData,
                 images: DEFAULT_IMAGES // Using dummy images for MVP
-            }, user.id);
+            });
 
             if (result.success) {
                 alert("✅ Slot submitted successfully! Waiting for Admin Approval.");

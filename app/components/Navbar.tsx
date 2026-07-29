@@ -58,7 +58,7 @@ export default function Navbar() {
                                 <span className="text-sm font-medium">{user.name.split(' ')[0]}</span>
                             </Link>
                             <button
-                                onClick={logout}
+                                onClick={() => void logout()}
                                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
                                 title="Logout"
                             >
@@ -95,7 +95,7 @@ export default function Navbar() {
                     {user ? (
                         <>
                             <div className="text-brand-gray text-sm px-2">Signed in as {user.name}</div>
-                            <button onClick={logout} className="text-left text-brand-teal py-2 font-medium">
+                            <button onClick={() => void logout()} className="text-left text-brand-teal py-2 font-medium">
                                 Logout
                             </button>
                         </>

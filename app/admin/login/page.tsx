@@ -10,9 +10,6 @@ export default function AdminLoginPage() {
     const router = useRouter();
 
     // 🛡️ ADMIN SECURITY CONFIGURATION
-    const ADMIN_PHONE = "9000000002";
-    const ADMIN_CODE = "admin123"; // This is the "Master Password"
-
     const [phone, setPhone] = useState("");
     const [code, setCode] = useState("");
     const [otp, setOtp] = useState("");
@@ -25,10 +22,10 @@ export default function AdminLoginPage() {
         setError("");
         setLoading(true);
 
-        // 1. Check Phone & Master Code
+        // Validate server-side after the second factor input is collected.
         await new Promise(r => setTimeout(r, 1000)); // Simulate DB check
 
-        if (phone === ADMIN_PHONE && code === ADMIN_CODE) {
+        if (phone.length === 10 && code.length >= 8) {
             setStage('otp'); // Proceed to Step 2
         } else {
             setError("Access Denied: Invalid Admin ID or Master Code.");
@@ -47,7 +44,7 @@ export default function AdminLoginPage() {
         // In a real app, you'd verify the OTP here (e.g., against a generated code)
         // For this example, any non-empty OTP is considered valid after successful credentials
         if (otp.length > 0) {
-            const success = login(phone);
+            const success = await login(phone, code);
             if (success) {
                 router.push('/admin');
             } else {

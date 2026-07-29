@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-import { db } from "@/lib/store";
 import { Booking, ParkingSlot } from "@/lib/types";
 import { Plus, IndianRupee, Car, Calendar, ExternalLink, Trash2, Star, FileText, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { deleteParkingSlot, getOwnerDashboard } from "@/app/actions/owner";
 
 export default function OwnerDashboard() {
     const { user } = useAuth();
@@ -24,36 +24,13 @@ export default function OwnerDashboard() {
             return;
         }
 
-        // Calculate days left (Mock)
-        const sub = db.subscriptions.getByOwner(user.id);
-        if (sub) {
-            const end = new Date(sub.endDate);
-            const now = new Date();
-            const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            setDaysLeft(diff);
-        } else {
-            setDaysLeft(14); // Trial
-        }
-
-        const slots = db.slots.getAll().filter(s => s.ownerId === user.id);
-        setMySlots(slots);
-
-        const allBookings = db.bookings.getAll();
-        const myBookings = allBookings.filter(b => slots.some(s => s.id === b.slotId));
-        setBookings(myBookings);
-
-        const totalEarned = myBookings
-            .filter(b => b.status === 'paid' || b.status === 'completed')
-            .reduce((sum, b) => sum + b.amount, 0);
-
-        // Apply Commission Logic
-        const plan = user.subscriptionPlan || 'starter';
-        let commissionRate = 0.10; // Starter
-        if (plan === 'pro') commissionRate = 0.05;
-        if (plan === 'apartment') commissionRate = 0.0;
-
-        const netEarnings = totalEarned * (1 - commissionRate);
-        setEarnings(Math.floor(netEarnings));
+        getOwnerDashboard().then((dashboard) => {
+            setMySlots(dashboard.slots as ParkingSlot[]);
+            setBookings(dashboard.bookings as unknown as Booking[]);
+            setEarnings(dashboard.earnings);
+            setDaysLeft(dashboard.subscription ? Math.max(0, Math.ceil((new Date(dashboard.subscription.currentPeriodEnd).getTime() - Date.now()) / 86400000)) : 0);
+            setKycStatus(dashboard.owner.kycStatus.toLowerCase());
+        });
 
     }, [user, router]);
 
@@ -109,7 +86,7 @@ export default function OwnerDashboard() {
             </div>
 
             {/* Premium Features */}
-            {(user.subscriptionPlan === 'pro' || user.subscriptionPlan === 'apartment') && (
+            {user.subscriptionPlan === 'pro' && (
                 <div className="mb-12">
                     <h2 className="text-xl font-bold mb-4">Premium Tools</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -123,17 +100,6 @@ export default function OwnerDashboard() {
                             </div>
                         </button>
 
-                        {user.subscriptionPlan === 'apartment' && (
-                            <button onClick={() => alert("Opening Security Dashboard...")} className="bg-white/5 p-4 rounded-xl border border-white/10 flex items-center gap-4 hover:bg-white/10 transition-colors">
-                                <div className="p-2 bg-purple-500/20 text-purple-400 rounded-lg">
-                                    <ShieldCheck className="w-6 h-6" />
-                                </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold">Security Dashboard</h3>
-                                    <p className="text-xs text-brand-gray">View CCTV & In/Out logs</p>
-                                </div>
-                            </button>
-                        )}
                     </div>
                 </div>
             )}
@@ -194,8 +160,7 @@ export default function OwnerDashboard() {
                                 <button
                                     onClick={() => {
                                         if (confirm('Are you sure you want to delete this listing?')) {
-                                            db.slots.delete(slot.id);
-                                            setMySlots(prev => prev.filter(s => s.id !== slot.id));
+                                            void deleteParkingSlot(slot.id).then(() => setMySlots(prev => prev.filter(s => s.id !== slot.id)));
                                         }
                                     }}
                                     className="text-brand-gray hover:text-red-400 p-1"

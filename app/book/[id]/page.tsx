@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/lib/store";
 import { ParkingSlot, Booking } from "@/lib/types";
 import { useAuth } from "@/app/context/AuthContext";
 import { Calendar, Clock, MapPin, IndianRupee, ArrowLeft, CheckCircle, CreditCard, Loader2 } from "lucide-react";
-import { format, addHours, differenceInHours, parseISO } from "date-fns";
-import { v4 as uuidv4 } from "uuid";
+import { format, addHours } from "date-fns";
+import { confirmDemoBooking, startBookingCheckout, verifyBookingPayment } from "@/app/actions/booking";
+import { getPublicSlot } from "@/app/actions/public";
+import RazorpayButton from "@/app/components/RazorpayButton";
 
 export default function BookingPage() {
     const { id } = useParams();
@@ -19,6 +20,7 @@ export default function BookingPage() {
     const [duration, setDuration] = useState(2);
     const [showPayment, setShowPayment] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [checkout, setCheckout] = useState<{ bookingId: string; orderId?: string; amount?: number; mode: 'demo' | 'razorpay' } | null>(null);
 
     useEffect(() => {
         if (!user) {
@@ -26,8 +28,9 @@ export default function BookingPage() {
             router.push('/login');
             return;
         }
-        const found = db.slots.getAll().find((s) => s.id === id);
-        if (found) setSlot(found);
+        getPublicSlot(String(id)).then((found) => {
+            if (found) setSlot(found as ParkingSlot);
+        });
     }, [id, user, router]);
 
     if (!slot || !user) return <div className="p-8 text-center">Loading...</div>;
@@ -36,28 +39,34 @@ export default function BookingPage() {
 
     const handlePayment = async () => {
         setProcessing(true);
+        const result = await startBookingCheckout({ slotId: slot.id, startTime, duration });
+        if (!result.success || !result.bookingId || !result.mode) {
+            alert(result.error ?? 'Unable to create booking.');
+            setProcessing(false);
+            return;
+        }
+        if (result.mode === 'demo') {
+            const confirmation = await confirmDemoBooking(result.bookingId);
+            if (!confirmation.success) {
+                alert(confirmation.error ?? 'Unable to confirm booking.');
+                setProcessing(false);
+                return;
+            }
+            router.push(`/bookings/${result.bookingId}`);
+            return;
+        }
+        setCheckout({ bookingId: result.bookingId, orderId: result.orderId, amount: result.amount, mode: result.mode });
+        setProcessing(false);
+    };
 
-        // Simulate Razorpay Delay
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Create Booking
-        const newBooking: Booking = {
-            id: uuidv4(),
-            slotId: slot.id,
-            driverId: user.id,
-            startTime: startTime,
-            endTime: format(addHours(parseISO(startTime), duration), "yyyy-MM-dd'T'HH:mm"),
-            amount: totalAmount,
-            status: 'paid',
-            qrCode: `PV-${Date.now()}`,
-            createdAt: new Date().toISOString()
-        };
-
-        db.bookings.create(newBooking);
-
-        console.log("Booking created", newBooking); // Debug
-
-        router.push(`/bookings/${newBooking.id}`);
+    const handlePaymentSuccess = async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+        if (!checkout) return;
+        const result = await verifyBookingPayment({ bookingId: checkout.bookingId, paymentId: response.razorpay_payment_id, orderId: response.razorpay_order_id, signature: response.razorpay_signature });
+        if (!result.success) {
+            alert(result.error ?? 'Payment verification failed.');
+            return;
+        }
+        router.push(`/bookings/${checkout.bookingId}`);
     };
 
     return (
@@ -169,7 +178,19 @@ export default function BookingPage() {
                             </div>
 
                             <div className="space-y-3">
-                                <button
+                                {checkout?.mode === 'razorpay' && checkout.orderId && checkout.amount ? (
+                                    <RazorpayButton
+                                        orderId={checkout.orderId}
+                                        amount={checkout.amount}
+                                        description={`Parking at ${slot.title}`}
+                                        prefill={{ name: user.name, email: user.email, contact: user.phone }}
+                                        onSuccess={handlePaymentSuccess}
+                                        onFailure={() => setCheckout(null)}
+                                        className="w-full p-4 border rounded-xl flex items-center gap-4 hover:bg-gray-50 transition-colors group"
+                                    >
+                                        <span className="font-bold">Complete secure payment</span>
+                                    </RazorpayButton>
+                                ) : <button
                                     onClick={handlePayment}
                                     disabled={processing}
                                     className="w-full p-4 border rounded-xl flex items-center gap-4 hover:bg-gray-50 transition-colors group"
@@ -182,7 +203,7 @@ export default function BookingPage() {
                                         <p className="text-xs text-gray-500">Google Pay, PhonePe, Paytm</p>
                                     </div>
                                     {processing && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
-                                </button>
+                                </button>}
 
                                 <button
                                     disabled

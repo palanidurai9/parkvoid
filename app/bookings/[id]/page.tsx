@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/lib/store";
 import { Booking, ParkingSlot } from "@/lib/types";
 import { QRCodeSVG } from "qrcode.react";
 import { CheckCircle, Clock, MapPin, Navigation, Star } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { getDriverBooking } from "@/app/actions/booking";
 
 export default function BookingSuccessPage() {
     const { id } = useParams();
@@ -15,12 +15,12 @@ export default function BookingSuccessPage() {
     const [slot, setSlot] = useState<ParkingSlot | null>(null);
 
     useEffect(() => {
-        const b = db.bookings.getAll().find((x) => x.id === id);
-        if (b) {
-            setBooking(b);
-            const s = db.slots.getAll().find((x) => x.id === b.slotId);
-            if (s) setSlot(s);
-        }
+        getDriverBooking(String(id)).then((result) => {
+            if (result) {
+                setBooking(result as unknown as Booking);
+                setSlot(result.slot as unknown as ParkingSlot);
+            }
+        });
     }, [id]);
 
     if (!booking || !slot) return <div className="p-8 text-center text-white">Loading Pass...</div>;

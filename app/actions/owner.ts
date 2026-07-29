@@ -1,85 +1,65 @@
-'use server'
+'use server';
 
-import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
-import { ParkingSlot } from "@prisma/client"
+import { prisma } from '@/lib/prisma';
+import { requireRole } from '@/lib/session';
+import { revalidatePath } from 'next/cache';
 
-// Owner Stats
-export async function getOwnerStats(ownerId: string) {
-    try {
-        const slots = await prisma.parkingSlot.findMany({ where: { ownerId } })
-        const bookings = await prisma.booking.findMany({ where: { slot: { ownerId } } })
+const SLOT_LIMITS: Record<string, number> = { FREE: 1, STARTER: 2, PRO: 10 };
 
-        // Calculate earnings
-        let totalEarnings = 0
-        bookings.forEach(b => {
-            if (b.status === 'paid' || b.status === 'completed') {
-                totalEarnings += Number(b.amount)
-            }
-        })
-
-        return {
-            totalSlots: slots.length,
-            activeSlots: slots.filter(s => s.isActive).length,
-            totalBookings: bookings.length,
-            totalEarnings: totalEarnings
-        }
-    } catch (e) {
-        return { totalSlots: 0, activeSlots: 0, totalBookings: 0, totalEarnings: 0 }
-    }
+export async function getOwnerDashboard() {
+  const owner = await requireRole('OWNER');
+  const [slots, bookings, subscription] = await Promise.all([
+    prisma.parkingSlot.findMany({ where: { ownerId: owner.id }, orderBy: { createdAt: 'desc' } }),
+    prisma.booking.findMany({ where: { slot: { ownerId: owner.id } }, orderBy: { createdAt: 'desc' } }),
+    prisma.subscription.findFirst({ where: { ownerId: owner.id }, orderBy: { currentPeriodEnd: 'desc' } }),
+  ]);
+  const commission = owner.subPlan === 'PRO' ? 0.05 : owner.subPlan === 'STARTER' ? 0.1 : 0.15;
+  const gross = bookings.filter((booking) => ['PAID', 'CONFIRMED', 'COMPLETED', 'ACTIVE'].includes(booking.status)).reduce((sum, booking) => sum + Number(booking.amount), 0);
+  return {
+    owner: { ...owner, walletBalance: Number(owner.walletBalance) },
+    slots: slots.map((slot) => ({ ...slot, pricePerHour: Number(slot.pricePerHour), images: JSON.parse(slot.images || '[]'), status: slot.isActive ? 'active' : slot.isApproved ? 'inactive' : 'pending', vehicleType: slot.vehicleType.toLowerCase() })),
+    bookings: bookings.map((booking) => ({ ...booking, amount: Number(booking.amount), startTime: booking.startTime.toISOString(), endTime: booking.endTime.toISOString(), createdAt: booking.createdAt.toISOString(), status: booking.status.toLowerCase() })),
+    subscription: subscription ? { ...subscription } : null,
+    earnings: Math.floor(gross * (1 - commission)),
+  };
 }
 
-export async function addParkingSlot(data: any, ownerId: string) {
-    try {
-        // Validation (Basic)
-        if (!data.title || !data.address || !data.pricePerHour) {
-            return { success: false, error: "Missing required fields" }
-        }
+export async function getOwnerStats() {
+  const dashboard = await getOwnerDashboard();
+  return {
+    totalSlots: dashboard.slots.length,
+    activeSlots: dashboard.slots.filter((slot) => slot.status === 'active').length,
+    totalBookings: dashboard.bookings.length,
+    totalEarnings: dashboard.earnings,
+  };
+}
 
-        // Check limits based on subscription
-        const owner = await prisma.user.findUnique({
-            where: { id: ownerId },
-            include: { slots: true }
-        })
+export async function addParkingSlot(data: { title: string; address: string; lat: number; lng: number; pricePerHour: number; vehicleType: string; description?: string; openTime?: string; closeTime?: string; images?: string[] }) {
+  const owner = await requireRole('OWNER');
+  if (!data.title?.trim() || !data.address?.trim() || !Number.isFinite(Number(data.pricePerHour)) || Number(data.pricePerHour) <= 0) return { success: false, error: 'Enter a title, address, and a valid hourly price.' };
+  if (!Number.isFinite(Number(data.lat)) || !Number.isFinite(Number(data.lng))) return { success: false, error: 'Select a valid parking location.' };
 
-        if (!owner) return { success: false, error: "Owner not found" }
+  const currentCount = await prisma.parkingSlot.count({ where: { ownerId: owner.id } });
+  const plan = owner.subPlan ?? 'FREE';
+  if (currentCount >= (SLOT_LIMITS[plan] ?? 1)) return { success: false, error: `Your ${plan.toLowerCase()} plan has reached its listing limit.` };
 
-        // Logic for limits (simplified)
-        // Logic for limits
-        const currentCount = owner.slots.length
-        let limit = 1 // Free (Default)
+  await prisma.parkingSlot.create({ data: {
+    ownerId: owner.id,
+    title: data.title.trim(),
+    address: data.address.trim(),
+    lat: Number(data.lat), lng: Number(data.lng), pricePerHour: Number(data.pricePerHour),
+    vehicleType: data.vehicleType.toUpperCase(), description: data.description?.trim(),
+    openTime: data.openTime ?? '00:00', closeTime: data.closeTime ?? '23:59',
+    images: JSON.stringify(data.images ?? []), isActive: false, isApproved: false,
+  } });
+  revalidatePath('/dashboard/owner');
+  revalidatePath('/search');
+  return { success: true };
+}
 
-        const plan = owner.subPlan ? owner.subPlan.toUpperCase() : 'FREE';
-
-        if (plan === 'STARTER') limit = 2
-        if (plan === 'PRO') limit = 10
-
-        if (currentCount >= limit) {
-            return { success: false, error: `Slot limit of ${limit} reached for ${plan} plan. Upgrade to list more.` }
-        }
-
-        await prisma.parkingSlot.create({
-            data: {
-                title: data.title,
-                address: data.address,
-                lat: parseFloat(data.lat),
-                lng: parseFloat(data.lng),
-                pricePerHour: parseFloat(data.pricePerHour),
-                vehicleType: data.vehicleType,
-                description: data.description,
-                openTime: data.openTime || "00:00",
-                closeTime: data.closeTime || "23:59",
-                images: JSON.stringify(data.images || []),
-                ownerId: ownerId,
-                // status: 'pending', - REMOVED: Schema uses isActive/isApproved flags
-                isActive: false // Not live yet
-            }
-        })
-
-        revalidatePath('/dashboard/owner')
-        return { success: true }
-    } catch (error) {
-        console.error("Error adding slot:", error)
-        return { success: false, error: "Failed to add slot" }
-    }
+export async function deleteParkingSlot(slotId: string) {
+  const owner = await requireRole('OWNER');
+  await prisma.parkingSlot.deleteMany({ where: { id: slotId, ownerId: owner.id } });
+  revalidatePath('/dashboard/owner');
+  revalidatePath('/search');
 }

@@ -112,6 +112,18 @@ NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxxxx
 RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
+For the complete, current configuration contract, copy `.env.example` to `.env`. Set `PAYMENTS_MODE=demo` only for local development; production uses `PAYMENTS_MODE=razorpay` with a Razorpay key pair and webhook secret.
+
+### Production deployment
+
+1. Provision PostgreSQL and set `DATABASE_URL` to its pooled application connection string.
+2. Generate a long `JWT_SECRET`, configure `ADMIN_ACCESS_CODE`, and add the Razorpay production keys.
+3. Apply the Prisma schema using `npx prisma migrate deploy` in CI or your deployment pipeline.
+4. Configure Razorpay's `payment.captured` and `payment.failed` webhook events at `/api/payments/razorpay/webhook` using `RAZORPAY_WEBHOOK_SECRET`.
+5. Deploy to a Node.js-compatible runtime such as Vercel, then replace demo credentials with your verified phone-OTP provider before opening public registration.
+
+The current login endpoint intentionally supports only users already provisioned in the database. This protects the owner/admin workflows until a real OTP provider is configured.
+
 ---
 
 ## 👤 Demo Accounts

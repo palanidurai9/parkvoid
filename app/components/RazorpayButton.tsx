@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 
 interface RazorpayButtonProps {
     amount: number;
+    orderId: string;
     currency?: string;
     description?: string;
     prefill?: {
@@ -12,14 +13,47 @@ interface RazorpayButtonProps {
         email?: string;
         contact?: string;
     };
-    onSuccess: (paymentId: string) => void;
-    onFailure?: (error: any) => void;
+    onSuccess: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+    onFailure?: (error: unknown) => void;
     className?: string;
     children?: React.ReactNode;
 }
 
+type RazorpayResponse = {
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+};
+
+type RazorpayInstance = {
+    on: (event: 'payment.failed', callback: (response: { error: unknown }) => void) => void;
+    open: () => void;
+};
+
+type RazorpayConstructor = new (options: {
+    key?: string;
+    amount: number;
+    order_id: string;
+    currency: string;
+    name: string;
+    description: string;
+    image: string;
+    handler: (response: RazorpayResponse) => void;
+    prefill: { name: string; email: string; contact: string };
+    notes: { address: string };
+    theme: { color: string };
+    modal: { ondismiss: () => void };
+}) => RazorpayInstance;
+
+declare global {
+    interface Window {
+        Razorpay?: RazorpayConstructor;
+    }
+}
+
 export default function RazorpayButton({
     amount, // In paise/units (e.g. 100 = 1 INR) -> No, standard usage often passes base unit, let's clarify. Usually razorpay expects Paise.
+    orderId,
     // Let's assume input is INR for simplicity in component usage, we multiply by 100.
     currency = "INR",
     description = "Parkvoid Payment",
@@ -35,7 +69,7 @@ export default function RazorpayButton({
         setLoading(true);
 
         // 1. Load Razorpay Script if not present
-        if (!(window as any).Razorpay) {
+        if (!window.Razorpay) {
             const script = document.createElement("script");
             script.src = "https://checkout.razorpay.com/v1/checkout.js";
             script.async = true;
@@ -44,15 +78,16 @@ export default function RazorpayButton({
         }
 
         const options = {
-            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_1234567890", // Test Key Fallback
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
             amount: amount * 100, // Convert INR to Paise
+            order_id: orderId,
             currency,
             name: "Parkvoid India",
             description,
             image: "/logo.png", // Ensure this exists or use a default
-            handler: function (response: any) {
+            handler: function (response: RazorpayResponse) {
                 setLoading(false);
-                onSuccess(response.razorpay_payment_id);
+                onSuccess(response);
             },
             prefill: {
                 name: prefill?.name || "",
@@ -74,8 +109,9 @@ export default function RazorpayButton({
         };
 
         try {
-            const rzp = new (window as any).Razorpay(options);
-            rzp.on('payment.failed', function (response: any) {
+            if (!window.Razorpay) throw new Error('Razorpay checkout could not be loaded.');
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', function (response) {
                 if (onFailure) onFailure(response.error);
                 setLoading(false);
             });

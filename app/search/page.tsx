@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { db } from "@/lib/store";
 import { ParkingSlot } from "@/lib/types";
+import { getPublicSlots } from "@/app/actions/public";
 import { Search as SearchIcon, Filter } from "lucide-react";
 
 // Dynamic Import is Crucial for Leaflet
@@ -19,32 +19,12 @@ export default function SearchPage() {
     const [query, setQuery] = useState("");
 
     useEffect(() => {
-        // Simulate Fetch
-        const data = db.slots.getAll();
-
-        // Ranking Logic
-        const subs = db.subscriptions.getAll();
-        const users = db.users.getAll();
-
-        // Helper to get score
-        const getScore = (ownerId: string) => {
-            const sub = subs.find(s => s.ownerId === ownerId);
-            const user = users.find(u => u.id === ownerId);
-
-            const plan = (sub?.plan || user?.subscriptionPlan || 'free').toLowerCase();
-
-            if (plan === 'pro') return 2;
-            if (plan === 'starter') return 1;
-            return 0;
-        };
-
-        const sortedData = [...data].sort((a, b) => {
-            return getScore(b.ownerId) - getScore(a.ownerId);
-        });
-
-        setAllSlots(sortedData);
-        setFilteredSlots(sortedData);
-        setLoading(false);
+        getPublicSlots()
+            .then((slots) => {
+                setAllSlots(slots as ParkingSlot[]);
+                setFilteredSlots(slots as ParkingSlot[]);
+            })
+            .finally(() => setLoading(false));
     }, []);
 
     useEffect(() => {

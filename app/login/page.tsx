@@ -33,8 +33,8 @@ export default function LoginPage() {
     const handleVerifyOtp = (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setTimeout(() => {
-            const success = login(phone);
+        setTimeout(async () => {
+            const success = await login(phone);
             if (success) {
                 if (activeTab === 'driver') router.push('/search');
                 else router.push('/dashboard/owner');
